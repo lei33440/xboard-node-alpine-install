@@ -1,5 +1,5 @@
 #!/bin/sh
-# Xboard-Node Alpine Linux Quick Installer
+# Xboard-Node Alpine Linux Installer v1.1.0
 #
 # Usage:
 #   Machine Mode: curl -fsSL URL | sh -s -- --panel URL --token T --machine-id ID
@@ -13,8 +13,7 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-# Version
-VERSION="1.0.0"
+VERSION="1.1.0"
 
 log_info() { echo -e "${GREEN}[INFO]${NC} $1"; }
 log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
@@ -43,7 +42,7 @@ while [ $# -gt 0 ]; do
         --node-id) NODE_ID="$2"; MODE="node"; shift 2;;
         --version) INSTALL_VERSION="$2"; shift 2;;
         --help) cat <<'HELP'
-Xboard-Node Alpine Linux Installer v1.0.0
+Xboard-Node Alpine Linux Installer v1.1.0
 
 Usage:
   Machine Mode: curl -fsSL URL | sh -s -- --panel URL --token T --machine-id ID
@@ -51,10 +50,10 @@ Usage:
 
 Arguments:
   --panel URL       Panel URL (required)
-  --token TOKEN Auth token (required)
+  --token TOKEN     Auth token (required)
   --machine-id ID   Machine ID (for Machine Mode)
   --node-id ID      Node ID (for Node Mode)
-  --version VERSION Xboard-Node version (default: latest)
+  --version VER     Xboard-Node version (default: latest)
   --help            Show this help
 
 Examples:
@@ -145,61 +144,53 @@ EOF
     log_info "Configured as Node Mode (ID: $NODE_ID)"
 fi
 
-# Create OpenRC service script
-log_step "Creating OpenRC service script..."
-cat > /etc/init.d/xboard-node <<'SVCEOF'
-#!/sbin/openrc-run
-
-description="Xboard Node Backend"
-command="/usr/local/bin/xboard-node"
-command_args="-c /etc/xboard-node/config.yml"
-command_background=true
-pidfile="/run/xboard-node.pid"
-output_log="/var/log/xboard-node.log"
-error_log="/var/log/xboard-node.err.log"
-
-depend() {
-    need net
-    after firewall
-}
-
-start_pre() {
-    mkdir -p /var/log
-    touch "$output_log"
-    touch "$error_log"
-}
-SVCEOF
-chmod +x /etc/init.d/xboard-node
-
 # Stop old service
 log_step "Stopping existing service..."
-rc-service xboard-node stop 2>/dev/null
-killall xboard-node 2>/dev/null
+pkill -9 xboard-node 2>/dev/null || true
 rm -f /run/xboard-node.pid
+sleep 1
 
-# Start service
+# Start service directly (more reliable on Alpine)
 log_step "Starting xboard-node..."
-rc-service xboard-node start
+/usr/local/bin/xboard-node -c /etc/xboard-node/config.yml >> /var/log/xboard-node.log 2>&1 &
 
 # Wait for startup
 sleep 3
 
 # Check status
 if pgrep -x xboard-node >/dev/null; then
+    # Get listening port
+    PORT=$(ss -tlnp 2>/dev/null | grep xboard-node | awk '{print $4}' | cut -d: -f2)
+
     echo ""
     echo "=============================================="
     log_info "Installation completed successfully!"
     echo "=============================================="
     echo ""
-    log_info "Service status: running"
-    log_info "View logs: tail -f /var/log/xboard-node.log"
-    log_info "Restart: rc-service xboard-node restart"
-    log_info "Stop: rc-service xboard-node stop"
+    log_info "Config: /etc/xboard-node/config.yml"
+    log_info "Log: /var/log/xboard-node.log"
+    if [ -n "$PORT" ]; then
+        log_info "Listening port: $PORT"
+    fi
+    echo ""
+    log_info "Commands:"
+    log_info "  View logs:  tail -f /var/log/xboard-node.log"
+    log_info "  Restart:    /usr/local/bin/xboard-node -c /etc/xboard-node/config.yml >> /var/log/xboard-node.log 2>&1 &"
     echo ""
 
-    # Enable on boot
-    rc-update add xboard-node default 2>/dev/null
-    log_info "Enabled autostart on boot"
+    # Set up autostart
+    if [ ! -f /etc/local.d/xboard-node.start ]; then
+        log_step "Setting up autostart..."
+        cat > /etc/local.d/xboard-node.start <<'AUTOSTART'
+#!/bin/sh
+# Start xboard-node on boot
+sleep 2
+mkdir -p /var/log
+/usr/local/bin/xboard-node -c /etc/xboard-node/config.yml >> /var/log/xboard-node.log 2>&1 &
+AUTOSTART
+        chmod +x /etc/local.d/xboard-node.start
+        log_info "Autostart configured"
+    fi
 else
     echo ""
     echo "=============================================="
