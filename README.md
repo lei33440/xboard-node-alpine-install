@@ -4,17 +4,21 @@
   <img src="https://img.shields.io/badge/Alpine-Linux-blue?style=flat-square&logo=alpine-linux" alt="Alpine Linux">
   <img src="https://img.shields.io/github/v/release/lei33440/xboard-node-alpine-install?style=flat-square" alt="Version">
   <img src="https://img.shields.io/github/stars/lei33440/xboard-node-alpine-install?style=flat-square" alt="Stars">
+  <img src="https://img.shields.io/github/forks/lei33440/xboard-node-alpine-install?style=flat-square" alt="Forks">
 </p>
 
 一个专为 **Alpine Linux** 设计的 Xboard-Node 一键安装脚本，支持 Machine Mode 和 Node Mode。
+
+> 💡 如果你需要在一台服务器上对接**多个面板**，请使用 [xboard-node-multi-panel](https://github.com/lei33440/xboard-node-multi-panel) 项目。
 
 ## 功能特性
 
 - ✅ **一键安装** - 只需一条命令即可完成安装
 - ✅ **支持两种模式** - Machine Mode 和 Node Mode
-- ✅ **自动配置 OpenRC** - 适配 Alpine Linux 服务管理
-- ✅ **开机自启** - 自动设置服务开机启动
+- ✅ **自动端口分配** - 自动从面板获取可用端口
+- ✅ **开机自启** - 自动配置开机启动
 - ✅ **多架构支持** - 支持 amd64 和 arm64
+- ✅ **更稳定的服务管理** - 使用 OpenRC local.d 方式
 
 ## 支持的系统
 
@@ -71,13 +75,11 @@ curl -fsSL https://raw.githubusercontent.com/lei33440/xboard-node-alpine-install
 ### 查看服务状态
 
 ```bash
-rc-service xboard-node status
-```
+# 查看进程
+ps aux | grep xboard-node | grep -v grep
 
-### 重启服务
-
-```bash
-rc-service xboard-node restart
+# 查看监听端口
+ss -tlnp | grep xboard
 ```
 
 ### 查看日志
@@ -86,14 +88,25 @@ rc-service xboard-node restart
 tail -f /var/log/xboard-node.log
 ```
 
+### 重启服务
+
+```bash
+# 停止
+pkill -9 xboard-node
+
+# 启动
+/usr/local/bin/xboard-node -c /etc/xboard-node/config.yml >> /var/log/xboard-node.log 2>&1 &
+```
+
 ### 卸载
 
 ```bash
 # 停止服务
-rc-service xboard-node stop
+pkill -9 xboard-node
 
 # 删除服务脚本
 rm -f /etc/init.d/xboard-node
+rm -f /etc/local.d/xboard-node.start
 
 # 删除二进制
 rm -f /usr/local/bin/xboard-node
@@ -101,8 +114,8 @@ rm -f /usr/local/bin/xboard-node
 # 删除配置（可选）
 rm -rf /etc/xboard-node
 
-# 移除开机自启
-rc-update del xboard-node default
+# 删除日志
+rm -f /var/log/xboard-node.log
 ```
 
 ## 文件位置
@@ -112,7 +125,7 @@ rc-update del xboard-node default
 | 二进制 | `/usr/local/bin/xboard-node` |
 | 配置 | `/etc/xboard-node/config.yml` |
 | 日志 | `/var/log/xboard-node.log` |
-| 服务脚本 | `/etc/init.d/xboard-node` |
+| 开机脚本 | `/etc/local.d/xboard-node.start` |
 
 ## 常见问题
 
@@ -137,7 +150,22 @@ curl -fsSL https://raw.githubusercontent.com/lei33440/xboard-node-alpine-install
 
 A: 支持 VLESS、Trojan、Shadowsocks、Hysteria2、TUIC、Naive 等协议。
 
+### Q: 为什么服务状态显示 crashed？
+
+A: 这是正常的。我们的安装脚本使用直接启动方式而不是 OpenRC 服务管理，所以 OpenRC 状态显示可能不准确。只要进程在运行且端口在监听，服务就是正常的。
+
+### Q: 如何在一台服务器上对接多个面板？
+
+A: 请使用 [xboard-node-multi-panel](https://github.com/lei33440/xboard-node-multi-panel) 项目，它专门设计用于多面板场景。
+
 ## 更新日志
+
+### v1.1.0 (2026-06-07)
+- 🔧 优化服务管理方式，使用 OpenRC local.d 开机脚本
+- 🔧 改进服务启动逻辑，更加稳定可靠
+- 📝 更新文档，添加常见问题解答
+- 🔧 修复 heredoc 变量引用问题
+- ✨ 添加安装后显示监听端口信息
 
 ### v1.0.0 (2026-06-05)
 - 🎉 首发版本
@@ -148,6 +176,7 @@ A: 支持 VLESS、Trojan、Shadowsocks、Hysteria2、TUIC、Naive 等协议。
 
 ## 相关项目
 
+- [xboard-node-multi-panel](https://github.com/lei33440/xboard-node-multi-panel) - 多面板/多实例安装脚本
 - [Xboard](https://github.com/cedar2025/Xboard) - 功能强大的代理面板
 - [Xboard-Node](https://github.com/cedar2025/Xboard-Node) - Xboard 节点后端
 
